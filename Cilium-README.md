@@ -4,6 +4,18 @@
 > 引用于https://isovalent.com/blog/post/why-replace-iptables-with-ebpf/#h-how-to-replace-iptables-and-bring-ebpf-into-kubernetes
 Cilium 数据平面提供了 kube-proxy 的全面替代品，使从 iptables 程序过渡到 eBPF 程序变得容易。在右侧，Cilium 在每个 Kubernetes 节点上安装 eBPF 和 XDP（eXpress 数据路径）程序，绕过了 iptables 的开销。这种方法最大限度地减少了开销和上下文切换要求，从而实现了高效的数据包处理，从而降低了延迟和 CPU 开销。
 
+## 优缺点
+### 优点
+1. 高性能: Cilium的使用eBPF技术可以实现卓越的性能，减少了网络包处理的性能开销。
+2. 强大的安全性: Cilium支持网络层面的安全策略，可以保护集群中的应用程序免受网络攻击。
+3. 应用层负载均衡: 可以实现应用层面的负载均衡，使流量分发更智能。
+4. Service Identity: 提供了强大的服务标识，有助于精细控制应用程序之间的通信。
+5. 可扩展性: Cilium支持大规模集群，并且易于扩展以适应不断增长的需求。
+
+### 缺点
+1. 学习曲线: 对于不熟悉eBPF和Cilium的用户来说，上手可能会有一定难度。
+2. 复杂性: 在复杂的网络环境中，配置和管理Cilium可能会变得复杂。
+
 ## 快速入门
 
 ### 先决条件
@@ -61,14 +73,26 @@ tail -f nohup.out
     ```
 
 ## 概念
-1. XDP：这是网络驱动程序中的一个钩子，可以在收到网络数据包时触发 BPF 程序，并且是最早的拦截点。由于此时尚未执行其他操作，例如将网络数据包写入内存，因此它非常适合运行过滤器以丢弃恶意或意外流量，以及其他常见的DDOS保护机制
-2. Traffic Control Ingress/Egress(流量控制入口/出口)：附加到流量控制（缩写为 tc）入口钩子的 BPF 程序也可以连接到网络接口。此钩子在第 3 层 （L3） 的网络堆栈之前执行，可以访问网络数据包的大部分元数据。它适用于处理本地节点上的操作，例如应用 L3/L4 端点策略[¹]、将流量转发到端点。CNI 通常使用虚拟以太网接口 （ veth ） 将容器连接到主机的网络命名空间。通过使用附加到主机端 veth 的 tc 入口钩子，可以监控离开容器的所有流量并强制执行策略。同时，通过将另一个 BPF 程序附加到 tc 出口钩子上，Cilium 可以监控进出节点的所有流量并强制执行策略
-3. Direct Routing 直接路由：移交给内核网络堆栈进行处理，或由底层 SDN 支持
-4. Tunneling 隧道：重新封装网络数据包，并通过隧道（如vxlan）传输
-5. OSI（开放系统互联）网络模型，OSI是一个分层的网络架构模型，共有七层。
-6. L3是网络层，干路由和寻址的事，
-7. L4（四层负载均衡）：L4工作在OSI模型的第四层，即传输层。四层负载均衡器主要分析IP层及TCP/UDP层的信息，通过修改数据包的地址信息将流量转发到应用服务器。这种负载均衡方式不理解应用协议（如HTTP/FTP/MySQL等），因此无法对流量内容进行深入的分析和处理。常见的四层负载均衡器有LVS、F5等。 
-8. L7负载均衡（七层负载均衡）：L7工作在OSI模型的第七层，即应用层。七层负载均衡器能够理解应用协议，对应用层的流量进行分析和处理。在接收到客户端的流量后，七层负载均衡器会建立一条完整的连接，将应用层的请求流量解析出来，再按照调度算法选择应用服务器，最后与应用服务器建立连接将请求发送过去。这种负载均衡方式能够实现对流量的更细致的控制，但相对于四层负载均衡来说，处理效率可能会稍低一些。常见的七层负载均衡器有haproxy、Nginx等。
+
+1. eBPF: Cilium使用eBPF技术来拦截和处理网络数据包，允许在数据包级别实施安全策略和路由。
+1. Flannel：Flannel是一个流行的CNI插件，它使用虚拟网络覆盖技术（overlay network）来连接不同节点上的容器。Flannel支持多种后端驱动，如VXLAN、UDP、Host-GW等。 
+2. Calico：Calico是一个开源的网络和安全解决方案，它使用BGP协议来实现容器之间的路由。Calico支持灵活的网络策略和安全规则，可用于大规模部署。
+3. Weave Net：Weave Net是一个轻量级的CNI插件，通过创建虚拟网络设备和网络代理来连接不同节点上的容器。Weave Net支持overlay模式和直连模式，具有灵活性。
+4. Canal：Canal是一个综合性的CNI插件，结合了Calico和Flannel的功能。它可以使用Flannel提供overlay网络，同时使用Calico的网络策略和安全性功能。
+5. Antrea：Antrea是一个基于Open vSwitch的CNI插件，专为Kubernetes网络和安全性而设计。它提供了高性能的网络连接和网络策略功能。
+6. kube-router：kube-router是一个开源的CNI插件，它结合了网络和服务代理功能。它支持BGP和IPIP协议，并具有负载均衡的特性
+7. Cilium: 是面向Kubernetes的高性能网络和安全解决方案，利用eBPF（Extended Berkeley Packet Filter）技术来提供快速的容器间通信和网络策略实施
+8. Weave Net: 是一个轻量级的CNI插件，通过创建虚拟网络设备和网络代理来连接不同节点上的容器。Weave Net支持overlay模式和直连模式，具有灵活性
+9. XDP：这是网络驱动程序中的一个钩子，可以在收到网络数据包时触发 BPF 程序，并且是最早的拦截点。由于此时尚未执行其他操作，例如将网络数据包写入内存，因此它非常适合运行过滤器以丢弃恶意或意外流量，以及其他常见的DDOS保护机制
+10. Traffic Control Ingress/Egress(流量控制入口/出口)：附加到流量控制（缩写为 tc）入口钩子的 BPF 程序也可以连接到网络接口。此钩子在第 3 层 （L3） 的网络堆栈之前执行，可以访问网络数据包的大部分元数据。它适用于处理本地节点上的操作，例如应用 L3/L4 端点策略[¹]、将流量转发到端点。CNI 通常使用虚拟以太网接口 （ veth ） 将容器连接到主机的网络命名空间。通过使用附加到主机端 veth 的 tc 入口钩子，可以监控离开容器的所有流量并强制执行策略。同时，通过将另一个 BPF 程序附加到 tc 出口钩子上，Cilium 可以监控进出节点的所有流量并强制执行策略
+11. Direct Routing 直接路由：移交给内核网络堆栈进行处理，或由底层 SDN 支持
+12. Tunneling 隧道：重新封装网络数据包，并通过隧道（如vxlan）传输
+13. OSI（开放系统互联）网络模型，OSI是一个分层的网络架构模型，共有七层。
+14. Service Identity: Cilium基于应用层的服务标识来管理网络策略，而不是仅仅依赖IP地址或端口号。
+14. Distributed L3/L4 Load Balancing: Cilium可以自动进行负载均衡，以分发流量到后端服务实例。
+15. L3: 是网络层，路由和寻址
+15. L4:（四层负载均衡）：L4工作在OSI模型的第四层，即传输层。四层负载均衡器主要分析IP层及TCP/UDP层的信息，通过修改数据包的地址信息将流量转发到应用服务器。这种负载均衡方式不理解应用协议（如HTTP/FTP/MySQL等），因此无法对流量内容进行深入的分析和处理。常见的四层负载均衡器有LVS、F5等。 
+16. L7: 负载均衡（七层负载均衡）：L7工作在OSI模型的第七层，即应用层。七层负载均衡器能够理解应用协议，对应用层的流量进行分析和处理。在接收到客户端的流量后，七层负载均衡器会建立一条完整的连接，将应用层的请求流量解析出来，再按照调度算法选择应用服务器，最后与应用服务器建立连接将请求发送过去。这种负载均衡方式能够实现对流量的更细致的控制，但相对于四层负载均衡来说，处理效率可能会稍低一些。常见的七层负载均衡器有haproxy、Nginx等。
 
 ## 先决条件
 0. [挂载eBPF](https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem)
@@ -334,7 +358,7 @@ kubeProxyReplacement=true  # 启用Kube代理替换
 hubble.enabled=true  # 启用Hubble
 nodeinit.enabled=true  # 启用节点初始化
 routingMode=native  # 设置路由模式为本地
-tunnel=disabled  # 禁用隧道
+tunnel=disabled  # 禁用隧道 对于在node之间传输的pod间流量启用overlay网络通信,disabled 表示不使用vxlan
 k8sClientRateLimit.qps=30  # Kubernetes客户端速率限制QPS
 k8sClientRateLimit.burst=40  # Kubernetes客户端速率限制突发值
 rollOutCiliumPods=true  # 滚动Cilium Pods
@@ -358,7 +382,7 @@ pmtuDiscovery.enabled=true  # 启用PMTU发现
 enableIPv6BIGTCP=false  # 禁用IPv6 BIGTCP
 sctp.enabled=true  # 启用SCTP
 wellKnownIdentities.enabled=true  # 启用已知身份
-installNoConntrackIptablesRules=true  # 安装无连接跟踪iptables规则
+installNoConntrackIptablesRules=true  # 表示绕过主机上iptable规则，遍历主机命名空间中的网络堆栈，iptables会增加成本，通过禁用所有 Pod 流量的连接跟踪要求，从而绕过主机上的iptables连接跟踪器，可以最大限度地减少成本。
 enableIPv4BIGTCP=true  # 启用IPv4 BIGTCP
 egressGateway.enabled=false  # 禁用出口网关
 endpointRoutes.enabled=false  # 禁用端点路由
@@ -427,6 +451,19 @@ cilium install  \
 ```
 
 ## 杂项设置
+
+### [Pools IP池](https://docs.cilium.io/en/stable/network/lb-ipam/)
+```shell
+cat > lb-ipam.yaml << EOF
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "blue-pool"
+spec:
+  cidrs:
+  - cidr: "10.0.10.0/24"
+EOF
+```
 
 ### IPAM
 验证 Cilium 是否已正确启动
