@@ -282,7 +282,6 @@ kubectl -n kube-system delete ds kube-proxy
 kubectl -n kube-system delete cm kube-proxy
 # Run on each node with root permissions:
 iptables-save | grep -v KUBE | iptables-restore
-
 ```
 
 [官方values]配置(https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml.tmpl)
@@ -323,6 +322,107 @@ k apply -f hostpost-test.yaml
 # 把<cilium-xx>替换为你的cilium Pod名称
 kubectl exec -it -n kube-system <cilium-xx> -- cilium service list
 ```
+
+### 增强设置(已验证)
+ipv4NativeRoutingCIDR和clusterPoolIPv4PodCIDRList的参数值与Pod的网段一致
+kubeProxyReplacement 完全替换kube-proxy
+kubeProxyReplacement=true  # 启用Kube代理替换
+hubble.enabled=true  # 启用Hubble
+nodeinit.enabled=true  # 启用节点初始化
+routingMode=native  # 设置路由模式为本地
+tunnel=disabled  # 禁用隧道
+k8sClientRateLimit.qps=30  # Kubernetes客户端速率限制QPS
+k8sClientRateLimit.burst=40  # Kubernetes客户端速率限制突发值
+rollOutCiliumPods=true  # 滚动Cilium Pods
+bpfClockProbe=true  # 启用BPF时钟探测
+bpf.masquerade=true  # 启用BPF伪装
+bpf.preallocateMaps=true  # 预分配BPF映射
+bpf.tproxy=true  # 启用BPF透明代理
+bpf.hostLegacyRouting=false  # 禁用BPF主机遗留路由
+autoDirectNodeRoutes=true  # 如果所有节点共享单个L2网络，则自动插入节点路由
+localRedirectPolicy=true  # 启用本地重定向策略
+enableCiliumEndpointSlice=true  # 启用Cilium EndpointSlice
+enableK8sEventHandover=true  # 启用Kubernetes事件移交
+externalIPs.enabled=true  # 启用外部IP
+hostPort.enabled=true  # 启用主机端口
+socketLB.enabled=true  # 启用Socket负载均衡
+nodePort.enabled=true  # 启用节点端口
+sessionAffinity=true  # 启用会话亲和性
+annotateK8sNode=true  # 在初始化时使用Cilium的元数据注释Kubernetes节点
+nat46x64Gateway.enabled=false  # 禁用NAT46x64网关
+pmtuDiscovery.enabled=true  # 启用PMTU发现
+enableIPv6BIGTCP=false  # 禁用IPv6 BIGTCP
+sctp.enabled=true  # 启用SCTP
+wellKnownIdentities.enabled=true  # 启用已知身份
+installNoConntrackIptablesRules=true  # 安装无连接跟踪iptables规则
+enableIPv4BIGTCP=true  # 启用IPv4 BIGTCP
+egressGateway.enabled=false  # 禁用出口网关
+endpointRoutes.enabled=false  # 禁用端点路由
+loadBalancer.mode=dsr  # 设置负载均衡器模式为DSR
+loadBalancer.serviceTopology=true  # 启用负载均衡器服务拓扑
+highScaleIPcache.enabled=false  # 禁用高规模IP缓存
+l2announcements.enabled=false  # 禁用L2通告
+image.useDigest=false  # 禁用使用摘要的镜像
+operator.image.useDigest=false  # 禁用使用摘要的操作员镜像
+operator.rollOutPods=true  # 操作员滚动Pods
+authentication.enabled=false  # 禁用认证
+bandwidthManager.enabled=true  # 启用带宽管理器
+bandwidthManager.bbr=true  # 启用BBR拥塞控制算法的带宽管理器
+ipv4NativeRoutingCIDR=10.244.0.0/16  # IPv4本地路由CIDR
+ipv6.enabled=false  # 禁用IPv6
+ipam.mode=kubernetes  # 设置IP地址管理模式为Kubernetes
+ipam.operator.clusterPoolIPv4PodCIDRList=["10.244.0.0/16"]  # IP地址管理操作员集群池IPv4 Pod CIDR列表
+```shell
+cilium install  \
+     --set kubeProxyReplacement=true \
+     --set hubble.enabled=true \
+     --set nodeinit.enabled=true \
+     --set routingMode=native \
+     --set tunnel=disabled \
+     --set k8sClientRateLimit.qps=30 \
+     --set k8sClientRateLimit.burst=40 \
+     --set rollOutCiliumPods=true \
+     --set bpfClockProbe=true \
+     --set bpf.masquerade=true \
+     --set bpf.preallocateMaps=true \
+     --set bpf.tproxy=true \
+     --set bpf.hostLegacyRouting=false \
+     --set autoDirectNodeRoutes=true \
+     --set localRedirectPolicy=true \
+     --set enableCiliumEndpointSlice=true \
+     --set enableK8sEventHandover=true \
+     --set externalIPs.enabled=true \
+     --set hostPort.enabled=true \
+     --set socketLB.enabled=true \
+     --set nodePort.enabled=true \
+     --set sessionAffinity=true \
+     --set annotateK8sNode=true \
+     --set nat46x64Gateway.enabled=false \
+     --set pmtuDiscovery.enabled=true \
+     --set enableIPv6BIGTCP=false \
+     --set sctp.enabled=true \
+     --set wellKnownIdentities.enabled=true \
+     --set installNoConntrackIptablesRules=true \
+     --set enableIPv4BIGTCP=true \
+     --set egressGateway.enabled=false \
+     --set endpointRoutes.enabled=false \
+     --set loadBalancer.mode=dsr \
+     --set loadBalancer.serviceTopology=true \
+     --set highScaleIPcache.enabled=false \
+     --set l2announcements.enabled=false \
+     --set image.useDigest=false \
+     --set operator.image.useDigest=false \
+     --set operator.rollOutPods=true \
+     --set authentication.enabled=false \
+     --set bandwidthManager.enabled=true \
+     --set bandwidthManager.bbr=true \
+     --set ipv4NativeRoutingCIDR=10.244.0.0/16 \
+     --set ipv6.enabled=false \
+     --set ipam.mode=kubernetes \
+     --set ipam.operator.clusterPoolIPv4PodCIDRList=["10.244.0.0/16"]
+```
+
+## 杂项设置
 
 ### IPAM
 验证 Cilium 是否已正确启动
@@ -584,12 +684,18 @@ kubectl exec -it -n kube-system cilium-bt8jj -- cilium status --verbose
 
 ## 排错
 
+### [诊断cilium在Pod中的信息](https://docs.cilium.io/en/stable/gettingstarted/demo/)
+```shell
+kubectl -n kube-system get pods -l k8s-app=cilium
+
+kubectl -n kube-system exec <cilium-pod-name> -- cilium endpoint list
+```
+
 ### 查看cilium配置
 ```shell
 kubectl -n kube-system get daemonsets.apps  cilium -o yaml
 ```
 
-### 查看日志
 ```shell
 kubectl -n kube-system exec ds/cilium -- cilium status --verbose
 ```
@@ -680,3 +786,22 @@ cp /boot/config-$(uname -r).back /boot/config-$(uname -r)
 ```
 
 ## 资料
+0. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
+1. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#kubeproxy-free
+2. https://docs.cilium.io/en/stable/network/concepts/ipam/
+1. https://docs.cilium.io/en/stable/network/lb-ipam/
+2. https://docs.cilium.io/en/stable/gettingstarted/hubble_cli/
+3. https://docs.cilium.io/en/stable/gettingstarted/demo/
+4. https://docs.cilium.io/en/stable/gettingstarted/hubble_setup/#hubble-setup
+5. https://docs.cilium.io/en/stable/observability/metrics/
+6. https://docs.cilium.io/en/stable/configuration/
+7. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#nodeport-devices-port-and-bind-settings
+8. https://docs.cilium.io/en/stable/network/kubernetes/
+9. https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
+10. https://docs.cilium.io/en/stable/gettingstarted/hubble/#hubble-ui
+11. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
+12. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-crd/
+13. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-cluster-pool/
+14. https://docs.cilium.io/en/v1.12/operations/troubleshooting/
+15. [helm values参数](https://docs.cilium.io/en/stable/helm-reference/)
+16. [helm values参数](https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml.tmpl)
