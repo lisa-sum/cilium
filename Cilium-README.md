@@ -65,6 +65,10 @@ tail -f nohup.out
 2. Traffic Control Ingress/Egress(流量控制入口/出口)：附加到流量控制（缩写为 tc）入口钩子的 BPF 程序也可以连接到网络接口。此钩子在第 3 层 （L3） 的网络堆栈之前执行，可以访问网络数据包的大部分元数据。它适用于处理本地节点上的操作，例如应用 L3/L4 端点策略[¹]、将流量转发到端点。CNI 通常使用虚拟以太网接口 （ veth ） 将容器连接到主机的网络命名空间。通过使用附加到主机端 veth 的 tc 入口钩子，可以监控离开容器的所有流量并强制执行策略。同时，通过将另一个 BPF 程序附加到 tc 出口钩子上，Cilium 可以监控进出节点的所有流量并强制执行策略
 3. Direct Routing 直接路由：移交给内核网络堆栈进行处理，或由底层 SDN 支持
 4. Tunneling 隧道：重新封装网络数据包，并通过隧道（如vxlan）传输
+5. OSI（开放系统互联）网络模型，OSI是一个分层的网络架构模型，共有七层。
+6. L3是网络层，干路由和寻址的事，
+7. L4（四层负载均衡）：L4工作在OSI模型的第四层，即传输层。四层负载均衡器主要分析IP层及TCP/UDP层的信息，通过修改数据包的地址信息将流量转发到应用服务器。这种负载均衡方式不理解应用协议（如HTTP/FTP/MySQL等），因此无法对流量内容进行深入的分析和处理。常见的四层负载均衡器有LVS、F5等。 
+8. L7负载均衡（七层负载均衡）：L7工作在OSI模型的第七层，即应用层。七层负载均衡器能够理解应用协议，对应用层的流量进行分析和处理。在接收到客户端的流量后，七层负载均衡器会建立一条完整的连接，将应用层的请求流量解析出来，再按照调度算法选择应用服务器，最后与应用服务器建立连接将请求发送过去。这种负载均衡方式能够实现对流量的更细致的控制，但相对于四层负载均衡来说，处理效率可能会稍低一些。常见的七层负载均衡器有haproxy、Nginx等。
 
 ## 先决条件
 0. [挂载eBPF](https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem)
@@ -455,7 +459,6 @@ spec:
       - 10.0.0.0/24
 ```
 
-
 ### 启用hubble
 现有升级:
 ```shell
@@ -786,22 +789,23 @@ cp /boot/config-$(uname -r).back /boot/config-$(uname -r)
 ```
 
 ## 资料
-0. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
-1. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#kubeproxy-free
-2. https://docs.cilium.io/en/stable/network/concepts/ipam/
-1. https://docs.cilium.io/en/stable/network/lb-ipam/
-2. https://docs.cilium.io/en/stable/gettingstarted/hubble_cli/
-3. https://docs.cilium.io/en/stable/gettingstarted/demo/
-4. https://docs.cilium.io/en/stable/gettingstarted/hubble_setup/#hubble-setup
-5. https://docs.cilium.io/en/stable/observability/metrics/
-6. https://docs.cilium.io/en/stable/configuration/
-7. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#nodeport-devices-port-and-bind-settings
-8. https://docs.cilium.io/en/stable/network/kubernetes/
-9. https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
-10. https://docs.cilium.io/en/stable/gettingstarted/hubble/#hubble-ui
-11. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
-12. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-crd/
-13. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-cluster-pool/
-14. https://docs.cilium.io/en/v1.12/operations/troubleshooting/
-15. [helm values参数](https://docs.cilium.io/en/stable/helm-reference/)
-16. [helm values参数](https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml.tmpl)
+1. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
+2. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#kubeproxy-free
+3. https://docs.cilium.io/en/stable/network/concepts/ipam/
+4. https://docs.cilium.io/en/stable/network/lb-ipam/
+5. https://docs.cilium.io/en/stable/gettingstarted/hubble_cli/
+6. https://docs.cilium.io/en/stable/gettingstarted/demo/
+7. https://docs.cilium.io/en/stable/gettingstarted/hubble_setup/#hubble-setup
+8. https://docs.cilium.io/en/stable/observability/metrics/
+9. https://docs.cilium.io/en/stable/configuration/
+10. https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#nodeport-devices-port-and-bind-settings
+11. https://docs.cilium.io/en/stable/network/kubernetes/
+12. https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
+13. https://docs.cilium.io/en/stable/gettingstarted/hubble/#hubble-ui
+14. https://docs.cilium.io/en/v1.12/operations/system_requirements/#mounted-ebpf-filesystem
+15. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-crd/
+16. https://docs.cilium.io/en/v1.12/gettingstarted/ipam-cluster-pool/
+17. https://docs.cilium.io/en/v1.12/operations/troubleshooting/
+18. [helm values参数](https://docs.cilium.io/en/stable/helm-reference/)
+19. [helm values参数](https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml.tmpl)
+20. [从cilium角度理解L3、L4、L7层网络策略的区别](https://www.cnblogs.com/janeysj/p/14548015.html)
