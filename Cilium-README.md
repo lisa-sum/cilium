@@ -314,7 +314,7 @@ iptables-save | grep -v KUBE | iptables-restore
 
 [官方values]配置(https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml.tmpl)
 
-启用HostPort
+启用HostPort, 如果kubeProxyReplacement不是true情况下, 需要手动设置helm参数:`--set hostPort.enabled=true`
 1. 启用选项
 2. 测试
 ```shell
@@ -352,103 +352,123 @@ kubectl exec -it -n kube-system <cilium-xx> -- cilium service list
 ```
 
 ### 增强设置(已验证)
-ipv4NativeRoutingCIDR和clusterPoolIPv4PodCIDRList的参数值与Pod的网段一致
-kubeProxyReplacement 完全替换kube-proxy
-kubeProxyReplacement=true  # 启用Kube代理替换
-hubble.enabled=true  # 启用Hubble
-nodeinit.enabled=true  # 启用节点初始化
-routingMode=native  # 设置路由模式为本地
-tunnel=disabled  # 禁用隧道 对于在node之间传输的pod间流量启用overlay网络通信,disabled 表示不使用vxlan
-k8sClientRateLimit.qps=30  # Kubernetes客户端速率限制QPS
-k8sClientRateLimit.burst=40  # Kubernetes客户端速率限制突发值
-rollOutCiliumPods=true  # 滚动Cilium Pods
-bpfClockProbe=true  # 启用BPF时钟探测
-bpf.masquerade=true  # 启用BPF伪装
-bpf.preallocateMaps=true  # 预分配BPF映射
-bpf.tproxy=true  # 启用BPF透明代理
-bpf.hostLegacyRouting=false  # 禁用BPF主机遗留路由
-autoDirectNodeRoutes=true  # 如果所有节点共享单个L2网络，则自动插入节点路由
-localRedirectPolicy=true  # 启用本地重定向策略
-enableCiliumEndpointSlice=true  # 启用Cilium EndpointSlice
-enableK8sEventHandover=true  # 启用Kubernetes事件移交
-externalIPs.enabled=true  # 启用外部IP
-hostPort.enabled=true  # 启用主机端口
-socketLB.enabled=true  # 启用Socket负载均衡
-nodePort.enabled=true  # 启用节点端口
-sessionAffinity=true  # 启用会话亲和性
-annotateK8sNode=true  # 在初始化时使用Cilium的元数据注释Kubernetes节点
-nat46x64Gateway.enabled=false  # 禁用NAT46x64网关
-pmtuDiscovery.enabled=true  # 启用PMTU发现
-enableIPv6BIGTCP=false  # 禁用IPv6 BIGTCP
-sctp.enabled=true  # 启用SCTP
-wellKnownIdentities.enabled=true  # 启用已知身份
-installNoConntrackIptablesRules=true  # 表示绕过主机上iptable规则，遍历主机命名空间中的网络堆栈，iptables会增加成本，通过禁用所有 Pod 流量的连接跟踪要求，从而绕过主机上的iptables连接跟踪器，可以最大限度地减少成本。
-enableIPv4BIGTCP=true  # 启用IPv4 BIGTCP
-egressGateway.enabled=false  # 禁用出口网关
-endpointRoutes.enabled=false  # 禁用端点路由
-loadBalancer.mode=dsr  # 设置负载均衡器模式为DSR
-loadBalancer.serviceTopology=true  # 启用负载均衡器服务拓扑
-highScaleIPcache.enabled=false  # 禁用高规模IP缓存
-l2announcements.enabled=false  # 禁用L2通告
-image.useDigest=false  # 禁用使用摘要的镜像
-operator.image.useDigest=false  # 禁用使用摘要的操作员镜像
-operator.rollOutPods=true  # 操作员滚动Pods
-authentication.enabled=false  # 禁用认证
-bandwidthManager.enabled=true  # 启用带宽管理器
-bandwidthManager.bbr=true  # 启用BBR拥塞控制算法的带宽管理器
-ipv4NativeRoutingCIDR=10.244.0.0/16  # IPv4本地路由CIDR
-ipv6.enabled=false  # 禁用IPv6
-ipam.mode=kubernetes  # 设置IP地址管理模式为Kubernetes
-ipam.operator.clusterPoolIPv4PodCIDRList=["10.244.0.0/16"]  # IP地址管理操作员集群池IPv4 Pod CIDR列表
+kubeProxyReplacement=true \ #完全替换kube-proxy \
+hubble.enabled=true \ # 启用Hubble \
+hubble.ui.enabled=true \
+hubble.relay.enabled=true \
+hubble.relay.service.type=LoadBalancer \
+hubble.relay.service.nodePort=31234 \
+nodeinit.enabled=true \ # 启用节点初始化 DaemonSet \
+tunnel=disabled \ # 配置节点间通信的封装配置, 可能的值： - disabled - vxlan - geneve, 默认vxlan   \
+k8sClientRateLimit.qps=30 \ 
+k8sClientRateLimit.burst=40 \
+rollOutCiliumPods=true \ # 更新 configmap 时自动重启 cilium 代理 pod  \
+bpfClockProbe=true \ #启用 BPF 时钟源探测，实现更高效的滴答检索  \
+bpf.masquerade=true \ # 在 eBPF 中启用原生 IP 伪装支持  \
+bpf.preallocateMaps=true \ # 启用 eBPF 映射值的预分配。这会增加内存使用量，但可以减少延迟  \
+bpf.tproxy=true \ # 配置基于 eBPF 的 TPROXY，减少对 iptables 规则的依赖，实现第 7 层策略  \
+bpf.hostLegacyRouting=false \ # true: 配置直接路由模式是应该通过主机堆栈 路由流量. false: 直接更有效地从 BPF路由流量（如果内核支持）。后者意味着它还将绕过主机命名空间中的 netfilter \
+autoDirectNodeRoutes=true \ # 如果 Worker 节点共享一个公共 L2 网段，则启用 Worker 节点之间的 PodCIDR 路由安装, 默认false \
+localRedirectPolicy=false \ # 启用本地重定向策略, 默认false \
+externalIPs.enabled=false \ # 启用 ExternalIPs 服务支持, 这是使用L2的必要条件, 默认false. 如果指定了 hostPort 而没有额外的 hostIP ，那么 Pod 将使用来自节点的相同本地地址向外界公开，这些地址与检测到并用于公开 NodePort 服务的本地地址相同，例如 Kubernetes InternalIP 或 ExternalIP（如果设置了）。此外，Pod 也可以通过节点上的环回地址访问 ，例如 127.0.0.1:hostPort 。如果除了还为 Pod 指定了 a hostIP 之外 hostPort ，那么 Pod 将只在给定 hostIP 的 Pod 上公开。A hostIP of 0.0.0.0 将具有与未指定 a hostIP 相同的行为。不得 hostPort 驻留在配置的 NodePort 端口范围内，以避免冲突 \
+hostPort.enabled=true \ # 启用 hostPort 服务支持, 默认false \
+enableCiliumEndpointSlice=true \ # 启用 CiliumEndpointSlice 端点切片功能, 默认false \
+enableK8sEventHandover=false \ # beta特性, 支持对集群中的CiliumEndpoint（CEP）对象进行批处理，以实现更好的可扩展性, 默认false \
+socketLB.enabled=true \
+nodePort.enabled=true \ # 启用 Cilium NodePort 服务实现 \
+sessionAffinity=true 会话亲和性, 不稳定的参数 \
+annotateK8sNode=true \ # 在初始化时使用 Cilium 的元数据注释 k8s 节点。 \
+nat46x64Gateway.enabled=false \ # 启用以RFC8215为前缀的翻译, 默认false \
+pmtuDiscovery.enabled=true \ # 启用路径 MTU 发现以向客户端发送需要 ICMP 分段的回复. 默认false \
+enableIPv4BIGTCP=true \ # 启用 IPv4 BIG TCP 支持，从而增加节点和 Pod 的最大 IPv4 GSO/GRO 限制 \
+enableIPv6BIGTCP=false \ # 启用 IPv6 BIG TCP 支持，从而增加节点和 Pod 的最大 IPv6 GSO/GRO 限制, 默认false \
+wellKnownIdentities.enabled=true \ # 允许使用已知标识 \
+installNoConntrackIptablesRules=true \ # 安装 Iptables 规则以跳过所有 Pod 流量的 netfilter 连接跟踪。仅当 Cilium 在直接路由和完整 KPR 模式下运行时，此选项才有效。此外，当 Cilium 在托管 Kubernetes 环境或链式 CNI 设置中运行时，无法启用此选项, 默认false \
+egressGateway.enabled=false \ # 启用出口网关重定向和SNAT离开的流量, 默认false \
+loadBalancer.mode=dsr \ # 让 Cilium 的 eBPF NodePort 实现在 DSR 模式下运行。在这种模式下，后端直接回复外部客户端，而不采取额外的跃点，这意味着后端使用服务 IP/端口作为源进行回复 \
+loadBalancer.serviceTopology=true \ # 实现了 K8s 服务拓扑感知提示。这允许 Cilium 节点首选位于同一区域中的服务端点, 默认false \
+highScaleIPcache.enabled=false \ # 为 ipcache 启用高缩放模式, 默认false \
+l2announcements.enabled=false \ # 是否启用 L2 Pod 公告, 默认false \
+operator.rollOutPods=true \ # 更新configmap 时自动重启 operator cilium 代理 pod, 默认false \
+authentication.enabled=false \ # 启用身份验证处理和垃圾回收。请注意，如果禁用，策略实施仍将阻止需要身份验证的请求。但是，不会处理这些请求生成的身份验证请求，因此不允许这些请求。默认false \
+bandwidthManager.enabled=true \ # 启用带宽管理器以优化 TCP 和 UDP 工作负载，并允许通过“kubernetes.io/egress-bandwidth”Pod 注释使用 EDT（最早出发时间）限制来自各个 Pod 的流量. 当 Pod 暴露在 Kubernetes 服务后面时，BBR 特别适合，这些服务面向来自 Internet 的外部客户端。BBR 实现了更高的带宽和更低的互联网流量延迟，例如，已经证明 BBR 的吞吐量可以达到比当今最好的基于丢失的拥塞控制高出 2,700 倍，排队延迟可以降低 25 倍 \
+bandwidthManager.bbr=true \ # 是否激活 Pod 的 BBR TCP 拥塞控制, 默认false \
+bgp.enabled=true \ #在ciilium内部启用BGP支持;为BGP嵌入一个新的ConfigMap \
+bgp.announce.loadbalancerIP=true \ #开启服务负载均衡器ip的分配和通告 \
+ipv4NativeRoutingCIDR=10.10.0.0/16 \
+ipv6.enabled=false \
+ipam.mode=kubernetes \
+ipam.operator.clusterPoolIPv4PodCIDRList=["10.10.0.0/16"]
 ```shell
-cilium install  \
-     --set kubeProxyReplacement=true \
-     --set hubble.enabled=true \
-     --set nodeinit.enabled=true \
-     --set routingMode=native \
-     --set tunnel=disabled \
-     --set k8sClientRateLimit.qps=30 \
-     --set k8sClientRateLimit.burst=40 \
-     --set rollOutCiliumPods=true \
-     --set bpfClockProbe=true \
-     --set bpf.masquerade=true \
-     --set bpf.preallocateMaps=true \
-     --set bpf.tproxy=true \
-     --set bpf.hostLegacyRouting=false \
-     --set autoDirectNodeRoutes=true \
-     --set localRedirectPolicy=true \
-     --set enableCiliumEndpointSlice=true \
-     --set enableK8sEventHandover=true \
-     --set externalIPs.enabled=true \
-     --set hostPort.enabled=true \
-     --set socketLB.enabled=true \
-     --set nodePort.enabled=true \
-     --set sessionAffinity=true \
-     --set annotateK8sNode=true \
-     --set nat46x64Gateway.enabled=false \
-     --set pmtuDiscovery.enabled=true \
-     --set enableIPv6BIGTCP=false \
-     --set sctp.enabled=true \
-     --set wellKnownIdentities.enabled=true \
-     --set installNoConntrackIptablesRules=true \
-     --set enableIPv4BIGTCP=true \
-     --set egressGateway.enabled=false \
-     --set endpointRoutes.enabled=false \
-     --set loadBalancer.mode=dsr \
-     --set loadBalancer.serviceTopology=true \
-     --set highScaleIPcache.enabled=false \
-     --set l2announcements.enabled=false \
-     --set image.useDigest=false \
-     --set operator.image.useDigest=false \
-     --set operator.rollOutPods=true \
-     --set authentication.enabled=false \
-     --set bandwidthManager.enabled=true \
-     --set bandwidthManager.bbr=true \
-     --set ipv4NativeRoutingCIDR=10.244.0.0/16 \
-     --set ipv6.enabled=false \
-     --set ipam.mode=kubernetes \
-     --set ipam.operator.clusterPoolIPv4PodCIDRList=["10.244.0.0/16"]
+cilium install --version 1.14.5 \
+--set k8sServiceHost=192.168.2.152 \
+--set k8sServicePort=6443 \
+--set cluster.name=prvite-kubernetes \
+--set cluster.id=1 \
+--set kubeProxyReplacement=true \
+--set hubble.enabled=true \
+--set hubble.ui.enabled=true \
+--set hubble.relay.enabled=true \
+--set hubble.relay.service.type=LoadBalancer \
+--set hubble.relay.service.nodePort=31234 \
+--set nodeinit.enabled=true \
+--set k8sClientRateLimit.qps=30 \
+--set k8sClientRateLimit.burst=40 \
+--set rollOutCiliumPods=true \
+--set bpfClockProbe=true \
+--set bpf.masquerade=true \
+--set bpf.preallocateMaps=true \
+--set bpf.tproxy=true \
+--set bpf.hostLegacyRouting=false \ 
+--set autoDirectNodeRoutes=true \ 
+--set localRedirectPolicy=true \ 
+--set externalIPs.enabled=true \ 
+--set hostPort.enabled=true \ 
+--set enableCiliumEndpointSlice=true \ 
+--set enableK8sEventHandover=false \
+--set nodePort.enabled=true \ # 启用 Cilium NodePort 服务实现 \ 
+--set socketLB.enabled=true \
+#--set sessionAffinity=true 会话亲和性, 不稳定的参数 \ 
+
+--set annotateK8sNode=true \
+--set nat46x64Gateway.enabled=false \
+--set pmtuDiscovery.enabled=true \
+--set enableIPv4BIGTCP=true \
+--set enableIPv6BIGTCP=false \
+--set wellKnownIdentities.enabled=true \
+--set installNoConntrackIptablesRules=true \ 
+--set egressGateway.enabled=false \
+--set loadBalancer.mode=dsr \ 
+--set loadBalancer.serviceTopology=true \ 
+--set highScaleIPcache.enabled=false \ 
+--set l2announcements.enabled=false \ 
+--set operator.rollOutPods=true \ 
+--set authentication.enabled=false \ 
+--set bandwidthManager.enabled=true \ 
+--set bandwidthManager.bbr=true \
+
+--set bgp.enabled=true \
+--set bgp.announce.loadbalancerIP=true \
+
+--set ipv4NativeRoutingCIDR=10.10.0.0/16 \
+--set ipv6.enabled=false \
+--set ipam.mode=kubernetes \
+--set ipam.operator.clusterPoolIPv4PodCIDRList=["10.10.0.0/16"]
 ```
+
+## 集成
+### [istio](https://docs.cilium.io/en/stable/network/servicemesh/istio/#gsg-istio)
+```shell
+cilium upgrade cilium cilium/cilium \
+--version 1.14.5 \
+--namespace kube-system \
+--reuse-values \
+--set socketLB.hostNamespaceOnly=true
+```
+
+### [Prometheus & Grafana](https://docs.cilium.io/en/stable/observability/grafana/#install-prometheus-grafana)
+
+
 
 ## 杂项设置
 
@@ -579,6 +599,24 @@ IP 地址是分配给 Kubernetes 工作节点的虚拟地址 10.42.0.2 之一，
 --set autoDirectNodeRoutes=true
 ```
 
+### LoadBalancer
+```shell
+cat > lb-ipam.yaml <<EOF
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "ip-pool"
+spec:
+  cidrs:
+  - cidr: ["192.168.2.170", "192.168.2.171", "192.168.2.172", "192.168.2.173", "192.168.2.174", "192.168.2.175", "192.168.2.176", "192.168.2.177", "192.168.2.178", "192.168.2.179", "192.168.2.180", "192.168.2.181", "192.168.2.182", "192.168.2.183", "192.168.2.184", "192.168.2.185", "192.168.2.186", "192.168.2.187", "192.168.2.188", "192.168.2.189", "192.168.2.190", "192.168.2.191", "192.168.2.192", "192.168.2.193", "192.168.2.194", "192.168.2.195", "192.168.2.196", "192.168.2.197", "192.168.2.198", "192.168.2.199"]
+EOF
+```
+
+检查ip是否存在错误或冲突
+```shell
+kubectl get ippools/ip-pool -o jsonpath='{.status.conditions[?(@.type=="io.cilium/conflict")].message}'
+```
+
 ### BBR for Pods
 #### 先决条件
 要求: Linux 内核v5.18.x 或更高版本的 Linux 内核
@@ -660,6 +698,24 @@ helm upgrade cilium cilium/cilium \
 ```
 
 ### [LoadBalancer 和 NodePort XDP 加速](https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#loadbalancer-nodeport-xdp-acceleration)
+[检查](https://docs.cilium.io/en/stable/bpf/progtypes/#xdp-drivers):
+```shell
+$ ethtool -i ens160
+
+driver: vmxnet3
+version: 1.7.0.0-k-NAPI
+firmware-version:
+expansion-rom-version:
+bus-info: 0000:03:00.0
+supports-statistics: yes
+supports-test: no
+supports-eeprom-access: no
+supports-register-dump: yes
+supports-priv-flags: no
+```
+
+可以看出机器支持vmxnet3 驱动，该驱动支持 register dump，这意味着您的机器支持 XDP（eXpress Data Path）。 XDP 是 Linux 内核中的一种高性能数据包处理框架，通过在网络设备驱动层上执行数据包处理程序，可以实现非常低延迟的数据包处理。
+
 Cilium 内置了对加速 NodePort、LoadBalancer 服务和具有 externalIP 的服务的支持，用于需要转发到达的请求并且后端位于远程节点上的情况。此功能是在 Cilium 1.8 版的 XDP（eXpress 数据路径）层引入的，其中 eBPF 直接在网络驱动程序中运行，而不是在更高层中运行。
 
 ```shell
@@ -715,18 +771,11 @@ nouhp cilium connectivity test --request-timeout 30s --connect-timeout 10s&
 tail -f nouhp.out
 ```
 
-ctd po -n kube-system cilium-2nfkl
-
-ct get po -n kube-system
-
-helm uninstall cilium -n kube-system
-kubectl exec -it -n kube-system cilium-bt8jj -- cilium status --verbose
-
 ## 排错
 
 ### [诊断cilium在Pod中的信息](https://docs.cilium.io/en/stable/gettingstarted/demo/)
 ```shell
-kubectl -n kube-system get pods -l k8s-app=cilium
+kubectl -n kube-system get pods -l k8s-app=cilium -owide
 
 kubectl -n kube-system exec <cilium-pod-name> -- cilium endpoint list
 ```
